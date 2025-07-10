@@ -49,3 +49,72 @@ def get_price(token):
         return res.json()[name]['usd']
     except:
         return 0
+# Регистрация
+@app.route('/register', methods=['POST'])
+def register():
+    email = request.form['email']
+    password = request.form['password']
+    if User.query.filter_by(email=email).first():
+        return "Email already registered"
+    user = User(email=email, password_hash=generate_password_hash(password))
+    user.balances = {"USDT": 0.0, "BTC": 0.0, "ETH": 0.0, "SOL": 0.0, "DOGE": 0.0, "XTRA": 0.0}
+    db.session.add(user)
+    db.session.commit()
+    session['user'] = email
+    return redirect('/')
+
+# Вход
+@app.route('/login', methods=['POST'])
+def login():
+    email = request.form['email']
+    password = request.form['password']
+    user = User.query.filter_by(email=email).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return "Invalid credentials"
+    session['user'] = email
+    return redirect('/')
+
+# Выход
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect('/')
+
+# Купить токен
+@app.route('/buy', methods=['POST'])
+def buy():
+    if 'user' not in session:
+        return redirect('/')
+    token = request.form['token']
+    amount = float(request.form['amount'])
+    user = User.query.filter_by(email=session['user']).first()
+    price = get_price(token)
+    total = amount * price
+    if user.balances.get('USDT', 0) >= total:
+        user.balances['USDT'] -= total
+        user.balances[token] += amount
+        db.session.add(Transaction(
+            user_email=user.email, type="buy", token=token,
+            amount=amount, price=price
+        ))
+        db.session.commit()
+    return redirect('/')
+
+# Пополнение баланса через NOWPayments
+@app.route('/deposit', methods=['POST'])
+def deposit():
+    if 'user' not in session:
+        return redirect('/')
+    amount = float(request.form['amount'])
+    payload = {
+        "price_amount": amount,
+        "price_currency": "usd",
+        "pay_currency": "usdttrc20",
+        "ipn_callback_url": "https://nowpayments.io",  # можно заменить на webhook
+        "order_id": str(uuid.uuid4()),
+        "order_description": f"Deposit for {session['user']}"
+    }
+    headers = {"x-api-key": NOWPAYMENTS_API}
+    res = requests.post("https://api.nowpayments.io/v1/invoice", json=payload, headers=headers)
+    invoice_url = res.json().get("invoice_url", "/")
+    return redirect(invoice_url)
