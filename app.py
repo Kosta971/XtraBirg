@@ -262,7 +262,36 @@ def index():
                     <input name="amount" placeholder="USD Amount" class="w-full p-2 bg-gray-700 rounded">
                     <button class="bg-green-600 px-4 py-2 rounded w-full">Deposit</button>
                 </form>
+<script>
+        const socket = io();
 
+        // Обработка чата
+        document.getElementById('chatForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const msg = document.getElementById('chatInput').value;
+            socket.emit('message', msg);
+            document.getElementById('chatInput').value = '';
+        });
+
+        socket.on('message', data => {
+            const chat = document.getElementById('chat');
+            chat.innerHTML += `<div><b>${data.user}:</b> ${data.text}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        // Загрузка истории
+        fetch('/history')
+        .then(res => res.json())
+        .then(data => {
+            const h = document.getElementById('history');
+            data.forEach(tx => {
+                h.innerHTML += `<li>${tx.time}: ${tx.type} ${tx.amount} ${tx.token} @ $${tx.price}</li>`;
+            });
+        });
+    </script>
+    </body>
+    </html>
+    ''', user=user, prices=prices)
                 <form action="/stripe" method="post" class="bg-gray-800 p-4 rounded-xl space-y-2">
                     <h2 class="text-xl font-semibold">💳 Deposit with Card (Stripe)</h2>
                     <input name="amount" placeholder="USD Amount" class="w-full p-2 bg-gray-700 rounded">
