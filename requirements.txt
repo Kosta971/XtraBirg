@@ -2,3 +2,6 @@ flask
 flask_sqlalchemy
 flask_socketio
 requests
+git add requirements.txt
+git commit -m "Добавлен requirements.txt"
+git push
