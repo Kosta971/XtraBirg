@@ -118,3 +118,68 @@ def deposit():
     res = requests.post("https://api.nowpayments.io/v1/invoice", json=payload, headers=headers)
     invoice_url = res.json().get("invoice_url", "/")
     return redirect(invoice_url)
+# Пополнение через Stripe (создание сессии)
+@app.route('/stripe', methods=['POST'])
+def stripe():
+    if 'user' not in session:
+        return redirect('/')
+    amount = int(float(request.form['amount']) * 100)  # в центах
+    stripe_session = requests.post(
+        "https://api.stripe.com/v1/checkout/sessions",
+        headers={
+            "Authorization": f"Bearer {STRIPE_SECRET}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        data={
+            "payment_method_types[]": "card",
+            "line_items[0][price_data][currency]": "usd",
+            "line_items[0][price_data][product_data][name]": "USDT Balance Top-up",
+            "line_items[0][price_data][unit_amount]": str(amount),
+            "line_items[0][quantity]": "1",
+            "mode": "payment",
+            "success_url": "https://xtrabirg.onrender.com/success?amount=" + str(amount / 100),
+            "cancel_url": "https://xtrabirg.onrender.com/"
+        }
+    )
+    session_data = stripe_session.json()
+    return redirect(session_data.get("url", "/"))
+
+# После оплаты Stripe
+@app.route('/success')
+def stripe_success():
+    if 'user' not in session:
+        return redirect('/')
+    amount = float(request.args.get("amount", 0))
+    user = User.query.filter_by(email=session['user']).first()
+    user.balances['USDT'] += amount
+    db.session.add(Transaction(
+        user_email=user.email,
+        type="deposit",
+        token="USDT",
+        amount=amount,
+        price=1
+    ))
+    db.session.commit()
+    return redirect('/')
+
+# История транзакций
+@app.route('/history')
+def history():
+    if 'user' not in session:
+        return redirect('/')
+    txs = Transaction.query.filter_by(user_email=session['user']).order_by(Transaction.timestamp.desc()).all()
+    return jsonify([{
+        "type": tx.type,
+        "token": tx.token,
+        "amount": tx.amount,
+        "price": tx.price,
+        "time": tx.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    } for tx in txs])
+
+# Чат через WebSocket
+@socketio.on('message')
+def handle_message(data):
+    emit('message', {
+        'user': session.get('user', 'Гость'),
+        'text': data
+    }, broadcast=True)
