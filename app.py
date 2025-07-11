@@ -292,7 +292,45 @@ def index():
     </script>
     </body></html>
     ''', user=user, prices=prices)
-
+@app.route('/markets')
+def markets():
+    return render_template_string('''
+    <html>
+    <head>
+        <title>Markets — XtraBirg</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-900 text-white p-6">
+        <h1 class="text-3xl font-bold mb-6">📊 Live Market Charts</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {% for symbol in ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT', 'XTRAUSD'] %}
+            <div class="bg-gray-800 p-4 rounded-xl">
+                <div class="tradingview-widget-container">
+                    <div id="tradingview_{{ symbol }}" style="height:300px;"></div>
+                    <script type="text/javascript">
+                        new TradingView.widget({
+                            "width": "100%",
+                            "height": 300,
+                            "symbol": "BINANCE:{{ symbol }}",
+                            "interval": "1",
+                            "timezone": "Etc/UTC",
+                            "theme": "dark",
+                            "style": "1",
+                            "locale": "en",
+                            "toolbar_bg": "#f1f3f6",
+                            "enable_publishing": false,
+                            "allow_symbol_change": true,
+                            "container_id": "tradingview_{{ symbol }}"
+                        });
+                    </script>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <script src="https://s3.tradingview.com/tv.js"></script>
+    </body>
+    </html>
+    ''')
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
