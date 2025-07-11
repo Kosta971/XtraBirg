@@ -297,3 +297,54 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+from functools import wraps
+
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "adminpass")
+
+def require_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get('admin') != True:
+            return redirect('/admin-login')
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/admin-login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        password = request.form['password']
+        if password == ADMIN_PASSWORD:
+            session['admin'] = True
+            return redirect('/admin')
+        return "Wrong admin password!"
+    return '''
+    <form method="post" style="margin:100px auto;width:300px;">
+        <input type="password" name="password" placeholder="Admin Password" style="width:100%;padding:10px;margin-bottom:10px;">
+        <button type="submit" style="padding:10px;width:100%;">Login as Admin</button>
+    </form>
+    '''
+
+@app.route('/admin')
+@require_admin
+def admin_panel():
+    users = User.query.all()
+    return render_template_string('''
+    <html><head><title>Admin Panel</title><style>
+    body { font-family: sans-serif; background: #111; color: #eee; padding: 40px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+    </style></head><body>
+    <h1>Admin Panel: Users</h1>
+    <table><thead>
+        <tr><th>Email</th><th>Balances</th></tr>
+    </thead><tbody>
+    {% for user in users %}
+        <tr><td>{{ user.email }}</td><td>
+        {% for token, amount in user.balances.items() %}
+            {{ token }}: {{ '%.4f'|format(amount) }}<br>
+        {% endfor %}
+        </td></tr>
+    {% endfor %}
+    </tbody></table>
+    </body></html>
+    ''', users=users)
